@@ -1,39 +1,101 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { StatusBar } from 'expo-status-bar';
+import { Provider } from 'react-redux';
+import { PaperProvider, MD3LightTheme as DefaultTheme, configureFonts } from 'react-native-paper';
+import store from './redux/store';
 import { useEffect } from 'react';
-import 'react-native-reanimated';
+import { loadUserFromToken } from './redux/authSlice';
+import { Slot } from 'expo-router';
+import { useFonts } from 'expo-font';
+import * as SplashScreen from 'expo-splash-screen';
+import { Platform, TextStyle } from 'react-native';
 
-import { useColorScheme } from '@/hooks/useColorScheme';
-
-// Prevent the splash screen from auto-hiding before asset loading is complete.
+// Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
 
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  const [loaded] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-  });
+// Define font configuration
+const fontConfig = {
+  fontFamily: 'Inter',
+  fonts: {
+    regular: {
+      fontFamily: 'Inter',
+      fontWeight: 'normal' as TextStyle['fontWeight'],
+    },
+    medium: {
+      fontFamily: 'Inter-Medium',
+      fontWeight: '500' as TextStyle['fontWeight'],
+    },
+    light: {
+      fontFamily: 'Inter-Light',
+      fontWeight: '300' as TextStyle['fontWeight'],
+    },
+    thin: {
+      fontFamily: 'Inter-Light',
+      fontWeight: '300' as TextStyle['fontWeight'],
+    },
+    bold: {
+      fontFamily: 'Inter-Bold',
+      fontWeight: 'bold' as TextStyle['fontWeight'],
+    },
+  },
+};
 
+// Configuração personalizada do tema
+const theme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    primary: '#006400', // Verde escuro
+    secondary: '#f57c00', // Laranja para alertas
+    background: '#f5f5f5',
+    surface: '#ffffff',
+  },
+  fonts: configureFonts({config: fontConfig}),
+};
+
+// Setup do cliente axios
+import axios from 'axios';
+import * as SecureStore from 'expo-secure-store';
+
+// Interceptor para incluir token em todas as requisições
+axios.interceptors.request.use(async (config) => {
+  const token = await SecureStore.getItemAsync('authToken');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+export default function RootLayout() {
+  // Load all the fonts
+  const [fontsLoaded, fontError] = useFonts({
+    'Inter': require('../assets/fonts/Inter_18pt-Regular.ttf'),
+    'Inter-Bold': require('../assets/fonts/Inter_18pt-Bold.ttf'),
+    'Inter-Light': require('../assets/fonts/Inter_18pt-Light.ttf'),
+    'Inter-Medium': require('../assets/fonts/Inter_18pt-Medium.ttf'),
+    'Inter-SemiBold': require('../assets/fonts/Inter_18pt-SemiBold.ttf'),
+  });
+  
+  // Carrega o usuário do token ao iniciar a aplicação
   useEffect(() => {
-    if (loaded) {
+    store.dispatch(loadUserFromToken());
+  }, []);
+
+  // Hide the splash screen when fonts are loaded
+  useEffect(() => {
+    if (fontsLoaded || fontError) {
       SplashScreen.hideAsync();
     }
-  }, [loaded]);
+  }, [fontsLoaded, fontError]);
 
-  if (!loaded) {
+  // Show nothing until fonts are loaded
+  if (!fontsLoaded && !fontError) {
     return null;
   }
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <Provider store={store}>
+      <PaperProvider theme={theme}>
+        <Slot />
+      </PaperProvider>
+    </Provider>
   );
 }
